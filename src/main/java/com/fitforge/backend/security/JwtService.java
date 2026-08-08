@@ -1,52 +1,74 @@
 package com.fitforge.backend.security;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
 import org.springframework.stereotype.Service;
 
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.function.Function;
 
 @Service
 public class JwtService {
 
-    private static final String SECRET_KEY =
-            "fitforgeSecretKeyFitforgeSecretKeyFitforgeSecretKey";
+    private static final String SECRET =
+            "FitForgeSecretKeyForJWTAuthentication12345678901234567890";
 
-    public String generateToken(String email) {
+    private final SecretKey secretKey =
+            Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
+
+    private final long jwtExpiration = 86400000;
+
+    public String generateToken(String username) {
 
         return Jwts.builder()
-                .setSubject(email)
-                .setIssuedAt(new Date())
-                .setExpiration(
-                        new Date(System.currentTimeMillis() + 1000 * 60 * 60)
-                )
-                .signWith(
-                        SignatureAlgorithm.HS256,
-                        SECRET_KEY
-                )
+                .subject(username)
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + jwtExpiration))
+                .signWith(secretKey)
                 .compact();
     }
 
-    public String extractEmail(String token) {
-
-        return Jwts.parser()
-                .setSigningKey(SECRET_KEY)
-                .parseClaimsJws(token)
-                .getBody()
-                .getSubject();
+    public String extractUsername(String token) {
+        return extractClaim(token, Claims::getSubject);
     }
 
-    public boolean isTokenValid(String token) {
+    public <T> T extractClaim(
+            String token,
+            Function<Claims, T> claimsResolver) {
 
-        try {
-            Jwts.parser()
-                    .setSigningKey(SECRET_KEY)
-                    .parseClaimsJws(token);
+        final Claims claims = extractAllClaims(token);
 
-            return true;
+        return claimsResolver.apply(claims);
+    }
 
-        } catch (Exception e) {
-            return false;
-        }
+    private Claims extractAllClaims(String token) {
+
+        return Jwts.parser()
+                .verifyWith(secretKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+
+    public boolean isTokenValid(String token, String username) {
+
+        final String extractedUsername = extractUsername(token);
+
+        return extractedUsername.equals(username)
+                && !isTokenExpired(token);
+    }
+
+    private boolean isTokenExpired(String token) {
+
+        return extractExpiration(token).before(new Date());
+    }
+
+    private Date extractExpiration(String token) {
+
+        return extractClaim(token, Claims::getExpiration);
     }
 }
