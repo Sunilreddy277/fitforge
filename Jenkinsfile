@@ -1,3 +1,4 @@
+```groovy
 pipeline {
     agent any
 
@@ -12,21 +13,22 @@ pipeline {
 
         stage('Build') {
             steps {
-                bat 'mvnw.cmd clean package -DskipTests'
+                sh 'chmod +x mvnw'
+                sh './mvnw clean package -DskipTests'
             }
         }
 
         stage('Docker Build') {
             steps {
-                bat 'docker build -t fitforge-backend:latest .'
+                sh 'docker build -t fitforge-backend:latest .'
             }
         }
 
         stage('Deploy') {
             steps {
-                bat '''
-                    docker stop fitforge-backend || exit /b 0
-                    docker rm fitforge-backend || exit /b 0
+                sh '''
+                    docker stop fitforge-backend || true
+                    docker rm fitforge-backend || true
                     docker run -d --name fitforge-backend -p 8082:8081 fitforge-backend:latest
                 '''
             }
@@ -43,3 +45,4 @@ pipeline {
         }
     }
 }
+```
